@@ -1,27 +1,32 @@
 
-import pygame as pg
+# import pygame as pg
 import numpy as np
 import json, sys, os
 import matplotlib.pyplot as plt
 
-from raytracing import Sphere, Scene
+from raytracing import Sphere, Scene, Light
 
 
 def plot_canvas(canvas):
     plt.figure(figsize=(8,8))
-    plt.imshow(canvas)
+    plt.imshow(canvas,)
     plt.axis("off")
     plt.show()
 
 def main():
-    Cw = 200
-    Ch = 200
+    Cw = 400
+    Ch = 400
     Vw = 1
     Vh = 1
     f  = 1
 
-    spheres = [Sphere(radius=0.1), Sphere(position=(2,0,4), color=(0,0,255),radius=1)]
-    scene = Scene(Cw, Ch, Vw, Vh, f, spheres, BG_COLOR=(0,0,0))
+    spheres = [Sphere(radius=0.1), 
+               Sphere(position=(2,0,7), color=(0,0,255),radius=1),
+               Sphere(position=(2,4,10), color=(112, 41, 99),radius=2.),
+               Sphere(position=(2,-4,10), color=(49, 203, 164),radius=2.), 
+               Sphere(color=(255,255,0), radius=5000, position=(5003,0,0))]
+    lights  = [Light(intensity=0.2), Light(intensity=0.6, position=(2,1,0)), Light(intensity=0.2,direction=(1,4,4))]
+    scene = Scene(Cw, Ch, Vw, Vh, f, spheres, lights, BG_COLOR=(255,255,255))
 
     O = np.zeros(3)
     for x in np.arange(-Cw//2, Cw//2):

@@ -1,13 +1,36 @@
-
-import pygame as pg
 import numpy as np
 import json, sys, os
 
+from enum import Enum
+
+class LightType(Enum):
+    AMBIENT = 0
+    POINT   = 1
+    DIRECTIONAL = 2
+
+class Light():
+    def __init__(self, intensity, position = None, direction = None):
+        self.intensity = intensity
+
+        if position is not None and direction is not None:
+            raise ValueError("Both position and direction parameters are given. You can only give either position for Point Light or direction for Directional Light")
+
+        elif position is not None:
+            self.type = LightType.POINT
+            self.position = np.array(position,dtype=np.float32)
+        
+        elif direction is not None:
+            self.type = LightType.DIRECTIONAL
+            self.direction = np.array(direction,dtype=np.float32)
+        
+        else:
+            self.type = LightType.AMBIENT
+
 class Sphere():
     def __init__(self, position = (0,0,1), radius = 1, color = (255,0,0)):
-        self.position = np.array(position)
+        self.position = np.array(position,dtype=np.float32)
         self.radius   = radius
-        self.color    = color
+        self.color    = np.array(color,dtype=np.float32)
 
     def intersect(self, O, D):
         CO = O - self.position
@@ -27,7 +50,7 @@ class Sphere():
         return t1,t2
 
 class Scene():
-    def __init__(self, cwidth, cheight, Vw, Vh, f, spheres, BG_COLOR = (255,255,255)):
+    def __init__(self, cwidth, cheight, Vw, Vh, f, spheres, lights, BG_COLOR = (255,255,255)):
         self.Cw = cwidth
         self.Ch = cheight
         self.Vw = Vw
@@ -35,8 +58,9 @@ class Scene():
         self.f  = f
 
         self.spheres = spheres
+        self.lights  = lights
 
-        self.BG_COLOR = BG_COLOR
+        self.BG_COLOR = np.array(BG_COLOR,dtype=np.float32)
 
         self.canvas = np.zeros((cheight, cwidth, 3))
 
@@ -44,6 +68,7 @@ class Scene():
         return x*self.Vw/self.Cw,y*self.Vh/self.Ch, self.f
 
     def put_pixel(self, x, y, color):
+        color = color / 255.
         sx = int(x + self.Cw/2)
         sy = int(y - self.Ch/2)
         self.canvas[sx,sy] = color
@@ -65,4 +90,28 @@ class Scene():
         if closest_sphere == None:
             return self.BG_COLOR
 
-        return closest_sphere.color
+        # Add lighting
+        P = O + closest_t * D
+        N = P - closest_sphere.position
+        N = N / np.linalg.norm(N)
+        light_intensity = self.compute_lighting(P,N)
+        return closest_sphere.color * light_intensity
+
+
+    def compute_lighting(self, p, n):
+        i = 0. # Light intensity
+
+        for light in self.lights:
+            if light.type == LightType.AMBIENT:
+                i += light.intensity
+            else:
+                if light.type == LightType.POINT:
+                    L = light.position - p
+                elif light.type == LightType.DIRECTIONAL:
+                    L = light.direction
+                
+                n_dot_L = np.dot(n, L)
+                if n_dot_L > 0:
+                    i += light.intensity * n_dot_L/(np.linalg.norm(n)*np.linalg.norm(L))
+
+        return i
