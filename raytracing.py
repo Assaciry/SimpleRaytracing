@@ -27,10 +27,11 @@ class Light():
             self.type = LightType.AMBIENT
 
 class Sphere():
-    def __init__(self, position = (0,0,1), radius = 1, color = (255,0,0)):
+    def __init__(self, position = (0,0,1), radius = 1, color = (255,0,0), specular_coeff = 100):
         self.position = np.array(position,dtype=np.float32)
         self.radius   = radius
         self.color    = np.array(color,dtype=np.float32)
+        self.specular_coeff = specular_coeff
 
     def intersect(self, O, D):
         CO = O - self.position
@@ -94,11 +95,11 @@ class Scene():
         P = O + closest_t * D
         N = P - closest_sphere.position
         N = N / np.linalg.norm(N)
-        light_intensity = self.compute_lighting(P,N)
+        light_intensity = self.compute_lighting(P, N, -D, closest_sphere.specular_coeff)
         return closest_sphere.color * light_intensity
 
 
-    def compute_lighting(self, p, n):
+    def compute_lighting(self, p, n, v, s):
         i = 0. # Light intensity
 
         for light in self.lights:
@@ -110,8 +111,18 @@ class Scene():
                 elif light.type == LightType.DIRECTIONAL:
                     L = light.direction
                 
+                # Diffuse light
                 n_dot_L = np.dot(n, L)
                 if n_dot_L > 0:
                     i += light.intensity * n_dot_L/(np.linalg.norm(n)*np.linalg.norm(L))
+                
+                # Specular light
+                if s != -1: # set s = -1 if the object is matte
+                    R = 2*n_dot_L-L
+                    r_dot_v = np.dot(R,v)
+                    if r_dot_v > 0:
+                        rn = np.linalg.norm(R)
+                        vn = np.linalg.norm(v)
+                        i += light.intensity * (r_dot_v/(rn*vn))**s 
 
         return i
