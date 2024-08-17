@@ -60,10 +60,10 @@ class Scene():
 
         self.spheres = spheres
         self.lights  = lights
-
         self.BG_COLOR = np.array(BG_COLOR,dtype=np.float32)
-
         self.canvas = np.zeros((cheight, cwidth, 3))
+
+        self.debuglisti = []
 
     def canvas_to_viewport(self, x,y):
         return x*self.Vw/self.Cw,y*self.Vh/self.Ch, self.f
@@ -101,7 +101,7 @@ class Scene():
 
     def compute_lighting(self, p, n, v, s):
         i = 0. # Light intensity
-
+        
         for light in self.lights:
             if light.type == LightType.AMBIENT:
                 i += light.intensity
@@ -118,11 +118,13 @@ class Scene():
                 
                 # Specular light
                 if s != -1: # set s = -1 if the object is matte
-                    R = 2*n_dot_L-L
+                    R = 2*n*n_dot_L-L
                     r_dot_v = np.dot(R,v)
                     if r_dot_v > 0:
                         rn = np.linalg.norm(R)
                         vn = np.linalg.norm(v)
+                        i_ = i
                         i += light.intensity * (r_dot_v/(rn*vn))**s 
+                        self.debuglisti.append(i - i_)
 
         return i
