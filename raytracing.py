@@ -27,11 +27,12 @@ class Light():
             self.type = LightType.AMBIENT
 
 class Sphere():
-    def __init__(self, position = (0,0,1), radius = 1, color = (255,0,0), specular_coeff = 100):
+    def __init__(self, position = (0,0,1), radius = 1, color = (255,0,0), specular_coeff = 100, reflectance = 0.):
         self.position = np.array(position,dtype=np.float32)
         self.radius   = radius
         self.color    = np.array(color,dtype=np.float32)
         self.specular_coeff = specular_coeff
+        self.reflectance = reflectance
 
     def intersect(self, O, D):
         CO = O - self.position
@@ -63,8 +64,6 @@ class Scene():
         self.BG_COLOR = np.array(BG_COLOR,dtype=np.float32)
         self.canvas = np.zeros((cheight, cwidth, 3))
 
-        self.debuglisti = []
-
     def canvas_to_viewport(self, x,y):
         return x*self.Vw/self.Cw,y*self.Vh/self.Ch, self.f
 
@@ -74,7 +73,34 @@ class Scene():
         sy = int(y - self.Ch/2)
         self.canvas[sx,sy] = color
 
-    def trace_ray(self, O, D, tmin=1, tmax=float("inf")):
+    def trace_ray(self, O, D, tmin=1, tmax=float("inf"), recursion_depth=0):
+        closest_sphere, closest_t = self.closest_intersection(O,D,tmin,tmax)
+
+        if closest_sphere == None:
+            return self.BG_COLOR
+
+        # Add lighting
+        P = O + closest_t * D
+        N = P - closest_sphere.position
+        N = N / np.linalg.norm(N)
+        light_intensity = self.compute_lighting(P, N, -D, closest_sphere.specular_coeff)
+        local_color = closest_sphere.color * light_intensity
+
+        closest_reflectance = closest_sphere.reflectance
+        if recursion_depth <= 0 or closest_reflectance <= 0:
+            return local_color
+        
+        R = self.reflect_ray(-D, N)
+        reflected_color = self.trace_ray(P, R, 0.001, float("inf"), recursion_depth-1)
+
+        return closest_reflectance * reflected_color + (1 - closest_reflectance) * local_color
+
+    @staticmethod
+    def reflect_ray(R, N):
+        return 2*N*np.dot(N,R)-R
+
+    def closest_intersection(self, O, D, tmin=1, tmax=float("inf")):
+        """ Calculate the ray-sphere intersection for a ray starting from _O_ along the direction _D_. Returns _(sphere,t)_"""
         closest_t = float("inf")
         closest_sphere = None
         for sphere in self.spheres:
@@ -88,16 +114,7 @@ class Scene():
                 closest_t = t2
                 closest_sphere = sphere
 
-        if closest_sphere == None:
-            return self.BG_COLOR
-
-        # Add lighting
-        P = O + closest_t * D
-        N = P - closest_sphere.position
-        N = N / np.linalg.norm(N)
-        light_intensity = self.compute_lighting(P, N, -D, closest_sphere.specular_coeff)
-        return closest_sphere.color * light_intensity
-
+        return closest_sphere, closest_t
 
     def compute_lighting(self, p, n, v, s):
         i = 0. # Light intensity
@@ -108,9 +125,16 @@ class Scene():
             else:
                 if light.type == LightType.POINT:
                     L = light.position - p
+                    tmax = 1
                 elif light.type == LightType.DIRECTIONAL:
                     L = light.direction
-                
+                    tmax = float("inf")
+
+                # Shadow check
+                shadow_sphere, shadow_t = self.closest_intersection(p, L, 0.001, tmax)
+                if shadow_sphere is not None:
+                    continue
+
                 # Diffuse light
                 n_dot_L = np.dot(n, L)
                 if n_dot_L > 0:
@@ -125,6 +149,5 @@ class Scene():
                         vn = np.linalg.norm(v)
                         i_ = i
                         i += light.intensity * (r_dot_v/(rn*vn))**s 
-                        self.debuglisti.append(i - i_)
 
         return i
